@@ -1,62 +1,59 @@
-Overview
-In LAG (Link Aggregation Group) or multi-plane setups, a VF’s effective bandwidth is the sum of the speeds of all PFs that participate in the aggregation. By default, VFs typically only expose the speed of a single underlying link and cannot report their true aggregated bandwidth.
+## Overview
 
-This feature enables VFs to:
+In **LAG (Link Aggregation Group)** or **multi-plane** setups, a Virtual Function (VF)'s effective bandwidth equals the sum of all **Physical Functions (PFs)** participating in the aggregation.
+By default, VFs only expose a single underlying link speed and cannot report their true aggregated bandwidth.
 
-Report the aggregated link speed (sum of all PFs in the LAG / MP-Ethernet group).
+This feature introduces support for:
 
-Receive asynchronous notifications when their effective bandwidth changes (for example, when a PF goes down or comes back up).
+- **Aggregated speed reporting** — VFs report the *sum* of all PF speeds in the group.
+- **Asynchronous bandwidth notifications** — VFs receive events when their effective bandwidth changes (e.g., when a PF link goes down or comes back up).
 
-This allows upper-layer tools and applications to make better traffic distribution and capacity decisions.
+This enhancement allows upper-layer tools and applications to make better **traffic distribution** and **capacity decisions**.
 
-Interfaces and APIs
-New verb: ibv_query_port_speed
-c
-int ibv_query_port_speed(struct ibv_context *context,
-                         uint8_t              port_num,
-                         uint64_t            *port_speed);
-Description
+***
 
-Returns the effective link speed of the specified port, in 100Mbps, as seen from the given function (PF/VF/SF).
+## Interfaces and APIs
 
-For VFs in LAG / MP-Ethernet configurations, this is the sum of all contributing PF link speeds.
+### New Verb: `ibv_query_port_speed`
 
-For non-aggregated ports, this returns the normal link speed of the underlying port.
+```c
+int ibv_query_port_speed(struct ibv_context *context, uint8_t port_num, uint64_t *port_speed);
+```
 
-Parameters
+**Description**
+Returns the effective link speed of the specified port (in units of 100 Mbps) as seen from the given function (PF/VF/SF).
 
-context – RDMA device context for the function (PF/VF/SF) whose port you are querying.
+- For VFs in LAG or MP‑Ethernet: returns aggregated speed (sum of PF speeds).
+- For non-aggregated ports: returns underlying port link speed.
 
-port_num – Port number on that context (as in existing ibv_query_port semantics).
+**Parameters**
 
-port_speed – Output parameter. On success, set to the current effective link speed in 100Mbps.
 
-Return value
+| Name | Description |
+| :-- | :-- |
+| `context` | RDMA device context for the function being queried. |
+| `port_num` | Port number within that context (same as existing `ibv_query_port` semantics). |
+| `port_speed` | Output pointer to store the current effective link speed. |
 
-0 on success.
+**Return Value**
 
-Negative errno on failure (for example, if the feature is not supported or the port does not exist).
+- `0` on success.
+- Negative `errno` on failure (e.g., unsupported feature or invalid port).
 
-New async event: IBV_EVENT_DEVICE_SPEED_CHANGE
-A new asynchronous event is added to notify applications when the effective link speed of a function changes.
+***
 
-Event type
+### New Async Event: `IBV_EVENT_DEVICE_SPEED_CHANGE`
 
-c
-IBV_EVENT_DEVICE_SPEED_CHANGE
-When it is generated
+This asynchronous event is triggered when a function’s effective bandwidth changes.
 
-Whenever the effective bandwidth for a function changes, for example:
+**When generated**
 
-A PF participating in a LAG / MP-Ethernet group goes down or comes back up.
+- A PF in a LAG / MP‑Ethernet group goes down or comes back up.
+- A configuration change affects the aggregated VF speed.
 
-A configuration change affects the aggregated speed seen by the VF.
+**Usage Example**
 
-How to use
-
-Applications should listen on the async event channel using the existing verbs mechanism:
-
-c
+```c
 struct ibv_async_event event;
 
 while (!done) {
@@ -67,82 +64,71 @@ while (!done) {
         ibv_ack_async_event(&event);
     }
 }
-When IBV_EVENT_DEVICE_SPEED_CHANGE is received, the application is expected to call ibv_query_port_speed() to retrieve the new effective speed and adjust its logic accordingly.
+```
 
-BlueField Environment (ECPF / ESW Manager)
-On BlueField platforms:
+Upon receiving `IBV_EVENT_DEVICE_SPEED_CHANGE`, the application should re-query the speed via `ibv_query_port_speed()` and update its internal state accordingly.
 
-The ECPF acts as the embedded switch (eswitch) manager for all PFs, VFs and SFs on the host.
+***
 
-The ECPF context manages and updates speed information for all functions it owns, similar to a regular host context.
+## BlueField Environment
 
-The feature works transparently across PFs, VFs and SFs on supported BlueField and ConnectX generations.
+On **BlueField** platforms:
 
-Feature Support and Compatibility
-This feature is supported on:
+- The **ECPF** acts as the embedded switch (eswitch) manager for all PFs, VFs, and SFs.
+- The ECPF context manages and updates speed info for all functions under its control.
+- Works transparently across PFs, VFs, and SFs on supported **BlueField** and **ConnectX** devices.
 
-ConnectX‑7 (CX7) and newer devices and corresponding BlueField generations that support VF‑LAG / MP‑Ethernet in hardware and firmware.
+***
 
-If the feature is not supported by a given device:
+## Feature Support and Compatibility
 
-ibv_query_port_speed() will fail with an appropriate error code.
+| Device | Support Status |
+| :-- | :-- |
+| ConnectX‑7 (CX7) | ✅ Supported |
+| Newer generations | ✅ Supported |
+| Older devices | ❌ Not supported |
 
-IBV_EVENT_DEVICE_SPEED_CHANGE events will not be generated.
+When unsupported:
 
-Port‑Down Behavior
-When interpreting the returned speed, note the following:
+- `ibv_query_port_speed()` fails with an appropriate error.
+- No `IBV_EVENT_DEVICE_SPEED_CHANGE` events are generated.
 
-If all contributing PFs are down but the VF itself is still administratively up, the VF still reports a non‑zero “maximum” speed due to optional internal loopback traffic paths on the device. This represents the theoretical maximum and not usable external bandwidth.
+***
 
-If the VF itself is also down, ibv_query_port_speed() will report 0 for that VF.
+## Port-Down Behavior
 
-Example Usage Scenario
-The following scenario demonstrates how to use the new verb and async event in a VF‑LAG / MP‑Ethernet environment.
+- If **all PFs are down** but the VF is still administratively up, the VF reports a non-zero *maximum* (loopback-only) speed.
+- If the **VF itself is down**, `ibv_query_port_speed()` reports `0`.
 
-Initial speed query
+***
 
-Configure a LAG or MP‑Ethernet setup with multiple PFs and one VF per PF.
+## Example Usage Scenario
 
-In the application, call ibv_query_port_speed() on the VF context and port.
+1. **Setup**: Create a LAG or MP‑Ethernet with multiple PFs and one VF per PF.
+2. **Initial Query**:
+Call `ibv_query_port_speed()` → returns sum of contributing PF link speeds.
+3. **PF Failure**:
+    - When a PF goes down, `IBV_EVENT_DEVICE_SPEED_CHANGE` is emitted.
+    - Requery aggregated speed → reflects remaining active PFs.
+4. **All PFs Down**:
+    - VF still up → reports theoretical loopback speed.
+    - VF down → reports 0.
+5. **Recovery**:
+    - PFs go back up → event triggered again.
+    - Requery → full aggregated bandwidth restored.
 
-Equals the sum of contributing PF speeds in MP‑Ethernet setups.
+***
 
-PF removal / failure
+## Supporting Versions
 
-Administratively “remove” (down) one PF that participates in the aggregation.
+| Component | Version |
+| :-- | :-- |
+| **Firmware (FW)** | 40_48_0302 |
+| **Upstream Kernel** | 6.19‑rc5 |
+| **rdma-core** | 62 |
 
-The application listens for async events with ibv_get_async_event().
 
-When IBV_EVENT_DEVICE_SPEED_CHANGE is received:
+***
 
-Acknowledge the event with ibv_ack_async_event().
+Would you like me to make this README more formal and publication-ready (e.g., for upstream submission or documentation site), or keep it in this developer-focused GitHub-friendly format?
 
-Call ibv_query_port_speed() again.
-
-The sum now is of the remaining active PFs (MP‑Ethernet).
-
-All PFs down
-
-Disable all PFs in the aggregation.
-
-IBV_EVENT_DEVICE_SPEED_CHANGE event is received.
-
-Query the speed again:
-
-If the VF remains up, speed may reflect the device’s internal maximum (loopback‑only).
-
-If the VF is also down, the reported speed is 0.
-
-Recovery
-
-Bring PFs back up.
-
-Receive a new IBV_EVENT_DEVICE_SPEED_CHANGE event.
-
-Call ibv_query_port_speed() and the speed returns to the full aggregated value.
-
-Supporting Versions
-
-FW: 40_48_0302
-Upstream: 6.19-rc5
-rdma-core : 62
