@@ -124,7 +124,6 @@ Call `ibv_query_port_speed()` → returns sum of contributing PF link speeds.
 | Component | Version |
 | :-- | :-- |
 | **Firmware (FW)** | xx.48.0302+ |
-
 | **Upstream Kernel** | 6.19+ (https://lore.kernel.org/all/20251218-vf-bw-lag-mode-v1-0-7d8ed4368bea@nvidia.com/)
 | **rdma-core** | 62+ (https://github.com/linux-rdma/rdma-core/pull/1674)
 or 
