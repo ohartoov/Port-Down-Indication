@@ -119,14 +119,18 @@ Call `ibv_query_port_speed()` → returns sum of contributing PF link speeds.
 
 ***
 
-## Supporting Versions
+## Prerequisites
 
 | Component | Version |
 | :-- | :-- |
-| **Firmware (FW)** | 40_48_0302 |
-| **Upstream Kernel** | 6.19‑rc5 |
-| **rdma-core** | 62 |
+| **Firmware (FW)** | xx.48.0302+ |
 
+| **Upstream Kernel** | 6.19+ (https://lore.kernel.org/all/20251218-vf-bw-lag-mode-v1-0-7d8ed4368bea@nvidia.com/)
+| **rdma-core** | 62+ (https://github.com/linux-rdma/rdma-core/pull/1674)
+or 
+| **OFED** | 26.01+ | 
+
+**Note**: both PF host and VF VM must have kernel driver support loaded. The VM host must have rdma-core userspace support for the ibv_query_port_speed verb. 
 
 ***
 
