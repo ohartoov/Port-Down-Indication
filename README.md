@@ -130,5 +130,3 @@ Call `ibv_query_port_speed()` → returns sum of contributing PF link speeds.
 
 ***
 
-Would you like me to make this README more formal and publication-ready (e.g., for upstream submission or documentation site), or keep it in this developer-focused GitHub-friendly format?
-
