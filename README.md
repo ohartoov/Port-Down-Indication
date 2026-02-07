@@ -121,6 +121,7 @@ Call `ibv_query_port_speed()` → returns sum of contributing PF link speeds.
 
 ## Prerequisites
 
+mlxconfig  KEEP_ETH_LINK_UP_P1 or KEEP_ETH_LINK_UP_P2 needs to be false.
 | Component | Version |
 | :-- | :-- |
 | **Firmware (FW)** | xx.48.0302+ |
